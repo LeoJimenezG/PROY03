@@ -1,6 +1,5 @@
 from threading import Thread
 from socket import *
-import subprocess
 import os
 import cv2
 
@@ -84,14 +83,7 @@ def process_video_segment(videoSegment: bytes):
             temp.write(videoSegment)
 
         # Process the video
-        reconstructedFile = f"reconstructed_segment_{nodeId}.mov"
-        subprocess.run(
-            ["ffmpeg", "-i", tempFile, "-c", "copy", reconstructedFile],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        cap = cv2.VideoCapture(reconstructedFile)
+        cap = cv2.VideoCapture(tempFile)
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
         processedFile = f"processed_segment_{nodeId}.mov"
         out = cv2.VideoWriter(

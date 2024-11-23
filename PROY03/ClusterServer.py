@@ -5,7 +5,7 @@ import os
 buffer: int = 32768
 
 # Server configurations
-host: str = "localhost"
+host: str = "0.0.0.0"
 serverPort: int = 5002
 serverAddress: tuple = (host, serverPort)
 
@@ -69,7 +69,7 @@ def listen_node_connection():
     global clusterNodeConnections
     numNodes: int = 0
     # Until 3 nodes are available
-    while numNodes < 1:
+    while numNodes < 2:
         try:
             # Get the information from the connected node
             nodeConnection, nodeAddress = clusterSocket.accept()
@@ -184,20 +184,21 @@ def send_video_nodes():
             # Get the number of available nodes
             numNodes: int = len(clusterNodeConnections)
             # Divide the video by the nodes to get the segment size
-            segmentSize: float = videoSize / numNodes
+            segmentSize: int = videoSize // numNodes
             # Send the segments to the nodes orderly
             for i in range(0, numNodes):
                 # Calculate indexes
-                starIndex: int = int(i * segmentSize)
-                endIndex: int = starIndex + segmentSize if i < numNodes - 1 else videoSize
+                startIndex: int = int(i * segmentSize)
+                endIndex: int = int(startIndex + segmentSize if i < numNodes - 1 else videoSize)
                 # Get the segment out of the video
-                videoSegment: bytes = videoData[starIndex:endIndex]
+                videoSegment: bytes = videoData[startIndex:endIndex]
                 # Set the segment size into 8 bytes
                 segmentSizeBytes: bytes = len(videoSegment).to_bytes(8, byteorder="big")
                 # Send the segment size to the node
                 clusterNodeConnections[i][0].sendall(segmentSizeBytes)
                 # Send the video segment to the node
                 clusterNodeConnections[i][0].sendall(videoSegment)
+
                 print(f"Video segment sent to node number: {i} \n")
     except Exception as e:
         print(f"Error sending segments to nodes: {e} \n")
