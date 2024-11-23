@@ -1,5 +1,6 @@
 from threading import Thread
 from socket import *
+import subprocess
 import os
 import cv2
 
@@ -11,7 +12,7 @@ serverPort: int = 5005
 
 # Create a socket for server connections
 nodeSocket: socket = socket(AF_INET, SOCK_STREAM)
-nodeId = 1
+nodeId = 2
 
 
 def connect_to_server(server_host: str, server_port: int):
@@ -83,7 +84,14 @@ def process_video_segment(videoSegment: bytes):
             temp.write(videoSegment)
 
         # Process the video
-        cap = cv2.VideoCapture(tempFile)
+        reconstructedFile = f"reconstructed_segment_{nodeId}.mov"
+        subprocess.run(
+            ["ffmpeg", "-i", tempFile, "-c", "copy", reconstructedFile],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        cap = cv2.VideoCapture(reconstructedFile)
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
         processedFile = f"processed_segment_{nodeId}.mov"
         out = cv2.VideoWriter(
