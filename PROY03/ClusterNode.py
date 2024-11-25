@@ -3,15 +3,15 @@ from socket import *
 import os
 import cv2
 
-buffer: int = 32768
+buffer: int = 4096
 
 # Cluster server configurations
-serverHost: str = "localhost"
+serverHost: str = "192.168.100.9"
 serverPort: int = 5005
 
 # Create a socket for server connections
 nodeSocket: socket = socket(AF_INET, SOCK_STREAM)
-nodeId = 2
+nodeId = 1
 
 
 def connect_to_server(server_host: str, server_port: int):
@@ -58,6 +58,7 @@ def receive_video_segment():
 
 
 def send_processed_video(video: bytes):
+    print("Sending processed segment back to server \n")
     try:
         # Indicate server processed segment is been sent back
         message: bytes = "BACK".encode()
@@ -76,6 +77,7 @@ def send_processed_video(video: bytes):
 
 
 def process_video_segment(videoSegment: bytes):
+    print("Processing video segment \n")
     try:
         # Create a temporal file with the segment
         tempFile = f"temp_segment_{nodeId}.mov"
@@ -105,6 +107,7 @@ def process_video_segment(videoSegment: bytes):
         with open(processedFile, "rb") as processed:
             processedVideoSegment = processed.read()
         # Send the processed segment
+        print("Video segment successfully processed \n")
         send_processed_video(video=processedVideoSegment)
     except Exception as e:
         print(f"Error processing video: {e} \n")
