@@ -84,7 +84,7 @@ def process_video_segment(videoSegment: bytes):
 
         # Process the video
         cap = cv2.VideoCapture(tempFile)
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         processedFile = f"processed_segment_{nodeId}.mov"
         out = cv2.VideoWriter(
             processedFile,

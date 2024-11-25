@@ -1,5 +1,6 @@
 from socket import *
 from threading import Thread
+import cv2
 import os
 
 buffer: int = 32768
@@ -83,7 +84,7 @@ def listen_node_connection():
         except Exception as e:
             print(f"Error accepting connection: {e} \n")
     # Once there are enough nodes, send each one a segment
-    send_video_nodes()
+    divide_video_segment(numberParts=numNodes)
 
 
 def handle_node_messages(nodeConnection, nodeAddress):
@@ -131,6 +132,69 @@ def handle_node_messages(nodeConnection, nodeAddress):
             break
 
 
+def divide_video_segment(numberParts: int):
+    global clusterNodeConnections
+    print("Sending segments to each node \n")
+    # Get the name of video received from client
+    videoPath: str = "video_received.mov"
+    try:
+        # If the video has been received
+        if os.path.exists(videoPath):
+            # Create directory if necessary
+            os.makedirs("segments", exist_ok=True)
+            # Clean previous segments
+            for file in os.listdir("segments"):
+                os.remove(os.path.join("segments", file))
+            # Open video and get its details
+            cap = cv2.VideoCapture(videoPath)
+            fps = int(cap.get(cv2.CAP_PROP_FPS))
+            totalFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            # Calculate frames per segment
+            framesPerSegment = totalFrames // numberParts
+            # Divide video into segments
+            for i in range(numberParts):
+                outputSegment = os.path.join("segments", f"segment_{i}.mov")
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                out = cv2.VideoWriter(outputSegment, fourcc, fps, (width, height))
+                # Calculate frames per segment
+                framesToWrite = framesPerSegment if i < numberParts - 1 else totalFrames - (
+                            framesPerSegment * (numberParts - 1))
+                for _ in range(framesToWrite):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    out.write(frame)
+                out.release()
+            cap.release()
+            print("Video division successful \n")
+            send_video_nodes()
+    except Exception as e:
+        print(f"Error dividing video into segments : {e} \n")
+
+
+def send_video_nodes():
+    global clusterNodeConnections
+    print("Sending segments to each node \n")
+    try:
+        # Send segments
+        for i, filename in enumerate(sorted(os.listdir("segments"))):
+            filePath = os.path.join("segments", filename)
+            with open(filePath, "rb") as f:
+                # Get segment data
+                data = f.read()
+                # Set the segment size into 8 bytes
+                segmentSizeBytes: bytes = len(data).to_bytes(8, byteorder="big")
+                # Send the segment size to the node
+                clusterNodeConnections[i][0].sendall(segmentSizeBytes)
+                # Send segment data
+                clusterNodeConnections[i][0].sendall(data)
+                print(f"Segment: {filename} sent to node {i} \n")
+    except Exception as e:
+        print(f"Error sending segments to nodes: {e} \n")
+
+
 def combine_video_segments():
     print("All segments received, combining video \n")
     # Open a file
@@ -166,42 +230,6 @@ def send_video_client():
             print("Processed video sent successfully \n")
     except Exception as e:
         print(f"Error sending video back to client: {e} \n")
-
-
-def send_video_nodes():
-    global clusterNodeConnections
-    print("Sending segments to each node \n")
-    # Get the name of video received from client
-    videoFile: str = "video_received.mov"
-    try:
-        # If the video has been received
-        if os.path.exists(videoFile):
-            # Read the video's data
-            with open(file=videoFile, mode="rb") as video:
-                videoData: bytes = video.read()
-            # Get the video size
-            videoSize: int = len(videoData)
-            # Get the number of available nodes
-            numNodes: int = len(clusterNodeConnections)
-            # Divide the video by the nodes to get the segment size
-            segmentSize: int = videoSize // numNodes
-            # Send the segments to the nodes orderly
-            for i in range(0, numNodes):
-                # Calculate indexes
-                startIndex: int = int(i * segmentSize)
-                endIndex: int = int(startIndex + segmentSize if i < numNodes - 1 else videoSize)
-                # Get the segment out of the video
-                videoSegment: bytes = videoData[startIndex:endIndex]
-                # Set the segment size into 8 bytes
-                segmentSizeBytes: bytes = len(videoSegment).to_bytes(8, byteorder="big")
-                # Send the segment size to the node
-                clusterNodeConnections[i][0].sendall(segmentSizeBytes)
-                # Send the video segment to the node
-                clusterNodeConnections[i][0].sendall(videoSegment)
-
-                print(f"Video segment sent to node number: {i} \n")
-    except Exception as e:
-        print(f"Error sending segments to nodes: {e} \n")
 
 
 def start_server():
