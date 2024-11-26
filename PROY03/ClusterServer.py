@@ -8,7 +8,7 @@ import os
 buffer: int = 4096
 
 # Server configurations
-host: str = "0.0.0.0"
+host: str = "localhost"
 serverPort: int = 5002
 serverAddress: tuple = (host, serverPort)
 

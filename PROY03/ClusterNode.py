@@ -6,7 +6,7 @@ import cv2
 buffer: int = 4096
 
 # Cluster server configurations
-serverHost: str = "192.168.100.9"
+serverHost: str = "localhost"
 serverPort: int = 5005
 
 # Create a socket for server connections
