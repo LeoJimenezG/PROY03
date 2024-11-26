@@ -71,6 +71,7 @@ def receive_server_video():
                 # When all information is received
                 if totalBytesReceived == messageLength:
                     print("Video processed received successfully \n")
+                    clientSocket.close()
         else:
             print("Video transfer incomplete \n")
     except Exception as e:

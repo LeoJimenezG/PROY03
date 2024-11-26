@@ -1,5 +1,6 @@
+from moviepy import VideoFileClip, concatenate_videoclips
 from socket import *
-from threading import Thread, Lock
+from threading import Thread
 import cv2
 import os
 
@@ -28,7 +29,6 @@ clusterSocket.listen(3)
 clientConnection: socket
 clusterNodeConnections: {} = {}
 receivedSegments: {} = {}
-receivedSegmentsLock = Lock()
 
 
 def listen_client_connection():
@@ -92,7 +92,6 @@ def handle_node_messages(nodeConnection, nodeAddress):
     global receivedSegments, clusterNodeConnections
     # Get the first message from the node
     firstMessage: str = nodeConnection.recv(4).decode()
-    print(firstMessage)
     # If the node responded
     if "BACK" in firstMessage:
         try:
@@ -112,22 +111,22 @@ def handle_node_messages(nodeConnection, nodeAddress):
                 # Add the chunk to segment
                 videoSegment += chunk
                 totalBytesReceived += len(chunk)
-            nodeKey = None
-            # Check the node's number using the ip address
-            for key, value in clusterNodeConnections.items():
-                if value[1] == nodeAddress:
-                    nodeKey = key
-                    break
             # Save the segment for later use
-            if totalBytesReceived == segmentSize and nodeKey is not None:
-                with receivedSegmentsLock:
+            if totalBytesReceived == segmentSize:
+                nodeKey = None
+                # Check the node's number using the ip address
+                for key, value in clusterNodeConnections.items():
+                    if value[1] == nodeAddress:
+                        nodeKey = key
+                        break
+                if nodeKey is not None:
                     # Assign the received segment to the responding node
                     receivedSegments[nodeKey] = videoSegment
                     print(f"Segment received correctly from node {clusterNodeConnections[nodeKey][1]} \n")
-            # If all nodes responded back with their corresponding segment
-            if len(receivedSegments) == len(clusterNodeConnections):
-                # Combine back the video
-                combine_video_segments()
+                # If all nodes responded back with their corresponding segment
+                if len(receivedSegments) == len(clusterNodeConnections):
+                    # Combine back the video
+                    combine_video_segments()
         except Exception as e:
             print(f"Error receiving video: {e} \n")
 
@@ -196,16 +195,41 @@ def send_video_nodes():
 
 
 def combine_video_segments():
-    print("All segments received, combining video \n")
-    # Open a file
-    with open(file="processed_video.mov", mode="wb") as outVideo:
-        # Get the segments according to its number
+    global receivedSegments, clusterNodeConnections
+    print("Combining all video segments \n")
+    try:
+        # Create temporary files for each video segment
+        tempVideoPaths = []
         for key in sorted(receivedSegments.keys()):
-            # Write the segments into the file
-            outVideo.write(receivedSegments[key])
-    print("All segments combined successfully \n")
-    # Send the video back to client
-    send_video_client()
+            temp_path = f"temp_segment_{key}.mov"
+            with open(temp_path, 'wb') as f:
+                f.write(receivedSegments[key])
+            tempVideoPaths.append(temp_path)
+        # Load segments
+        segmentClips = [VideoFileClip(path) for path in tempVideoPaths]
+        # Concatenate segments
+        finalVideo = concatenate_videoclips(segmentClips)
+        # Save the combined video
+        outputPath = 'processed_video.mov'
+        finalVideo.write_videofile(
+            outputPath,
+            codec='libx264',
+            audio_codec='aac',
+            preset='medium',
+            ffmpeg_params=['-movflags', '+faststart']
+        )
+        # Close clips to free resources
+        for clip in segmentClips:
+            clip.close()
+        finalVideo.close()
+        print("All segments combined successfully \n")
+        # Clean up temporary segment files
+        for path in tempVideoPaths:
+            os.remove(path)
+        # Send the video back to client
+        send_video_client()
+    except Exception as e:
+        print(f"Error combining video segments: {e}")
 
 
 def send_video_client():
