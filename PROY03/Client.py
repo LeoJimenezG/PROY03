@@ -3,7 +3,7 @@ from threading import Thread
 from socket import *
 import os
 
-buffer: int = 32768
+buffer: int = 4096
 
 # Cluster Server configurations
 serverHost: str = "localhost"
@@ -54,24 +54,25 @@ def receive_server_video():
         messageLengthBytes: bytes = clientSocket.recv(8)
         # Convert bytes into integer
         messageLength: int = int.from_bytes(messageLengthBytes, byteorder="big")
-        # Open file to write it
-        with open(file="processed_video_received.mov", mode="wb") as videoFile:
-            totalBytesReceived: int = 0
-            # Make sure all information is received
-            while totalBytesReceived < messageLength:
-                # Receive the video in chunks
-                videoChunk: bytes = clientSocket.recv(buffer)
-                # If there's no more information
-                if not videoChunk:
-                    break
-                # Write the chunk into the video file
-                videoFile.write(videoChunk)
-                totalBytesReceived += len(videoChunk)
-            # When all information is received
-            if totalBytesReceived == messageLength:
-                print("Video processed received successfully \n")
-            else:
-                print("Video transfer incomplete \n")
+        if messageLength > 0:
+            # Open file to write it
+            with open(file="processed_video_received.mov", mode="wb") as videoFile:
+                totalBytesReceived: int = 0
+                # Make sure all information is received
+                while totalBytesReceived < messageLength:
+                    # Receive the video in chunks
+                    videoChunk: bytes = clientSocket.recv(buffer)
+                    # If there's no more information
+                    if not videoChunk:
+                        break
+                    # Write the chunk into the video file
+                    videoFile.write(videoChunk)
+                    totalBytesReceived += len(videoChunk)
+                # When all information is received
+                if totalBytesReceived == messageLength:
+                    print("Video processed received successfully \n")
+        else:
+            print("Video transfer incomplete \n")
     except Exception as e:
         print(f"Error receiving video: {e} \n")
 

@@ -1,9 +1,9 @@
 from socket import *
-from threading import Thread
+from threading import Thread, Lock
 import cv2
 import os
 
-buffer: int = 32768
+buffer: int = 4096
 
 # Server configurations
 host: str = "0.0.0.0"
@@ -28,6 +28,7 @@ clusterSocket.listen(3)
 clientConnection: socket
 clusterNodeConnections: {} = {}
 receivedSegments: {} = {}
+receivedSegmentsLock = Lock()
 
 
 def listen_client_connection():
@@ -77,10 +78,10 @@ def listen_node_connection():
             print(f"Cluster Node connected from {nodeAddress} \n")
             # Save the node connection information using its numNode as a key
             clusterNodeConnections[numNodes] = [nodeConnection, nodeAddress]
-            # Increase the number of connected nodes
-            numNodes += 1
             # Set the connection on a thread
             Thread(target=handle_node_messages, args=(nodeConnection, nodeAddress)).start()
+            # Increase the number of connected nodes
+            numNodes += 1
         except Exception as e:
             print(f"Error accepting connection: {e} \n")
     # Once there are enough nodes, send each one a segment
@@ -88,48 +89,47 @@ def listen_node_connection():
 
 
 def handle_node_messages(nodeConnection, nodeAddress):
-    global receivedSegments
-    # Keep listening for node responses
-    while True:
-        # Get the first message from the node
-        firstMessage: str = nodeConnection.recv(8).decode()
-        # If the node responded
-        if firstMessage.startswith("BACK"):
-            try:
-                # Get the size of the video segment
-                segmentSizeBytes: bytes = nodeConnection.recv(8)
-                # Convert bytes to integer
-                segmentSize: int = int.from_bytes(segmentSizeBytes, byteorder="big")
-                videoSegment: bytes = b""
-                totalBytesReceived: int = 0
-                # While data is received
-                while totalBytesReceived < segmentSize:
-                    # Receive data in buffer size chunks
-                    chunk: bytes = nodeConnection.recv(buffer)
-                    # If there's no more data
-                    if not chunk:
-                        break
-                    # Add the chunk to segment
-                    videoSegment += chunk
-                    totalBytesReceived += len(chunk)
-                nodeKey = None
-                # Check the node's number using the ip address
-                for key, value in clusterNodeConnections.items():
-                    if value[1] == nodeAddress:
-                        nodeKey = key
-                        break
-                # Save the segment for later use
-                if totalBytesReceived == segmentSize and nodeKey is not None:
+    global receivedSegments, clusterNodeConnections
+    # Get the first message from the node
+    firstMessage: str = nodeConnection.recv(4).decode()
+    print(firstMessage)
+    # If the node responded
+    if "BACK" in firstMessage:
+        try:
+            # Get the size of the video segment
+            segmentSizeBytes: bytes = nodeConnection.recv(8)
+            # Convert bytes to integer
+            segmentSize: int = int.from_bytes(segmentSizeBytes, byteorder="big")
+            videoSegment: bytes = b""
+            totalBytesReceived: int = 0
+            # While data is received
+            while totalBytesReceived < segmentSize:
+                # Receive data in buffer size chunks
+                chunk: bytes = nodeConnection.recv(buffer)
+                # If there's no more data
+                if not chunk:
+                    break
+                # Add the chunk to segment
+                videoSegment += chunk
+                totalBytesReceived += len(chunk)
+            nodeKey = None
+            # Check the node's number using the ip address
+            for key, value in clusterNodeConnections.items():
+                if value[1] == nodeAddress:
+                    nodeKey = key
+                    break
+            # Save the segment for later use
+            if totalBytesReceived == segmentSize and nodeKey is not None:
+                with receivedSegmentsLock:
                     # Assign the received segment to the responding node
                     receivedSegments[nodeKey] = videoSegment
                     print(f"Segment received correctly from node {clusterNodeConnections[nodeKey][1]} \n")
-            except Exception as e:
-                print(f"Error receiving video: {e} \n")
-        # If all nodes responded back with their corresponding segment
-        if len(receivedSegments) == len(clusterNodeConnections):
-            # Combine back the video
-            combine_video_segments()
-            break
+            # If all nodes responded back with their corresponding segment
+            if len(receivedSegments) == len(clusterNodeConnections):
+                # Combine back the video
+                combine_video_segments()
+        except Exception as e:
+            print(f"Error receiving video: {e} \n")
 
 
 def divide_video_segment(numberParts: int):
@@ -190,7 +190,7 @@ def send_video_nodes():
                 clusterNodeConnections[i][0].sendall(segmentSizeBytes)
                 # Send segment data
                 clusterNodeConnections[i][0].sendall(data)
-                print(f"Segment: {filename} sent to node {i} \n")
+                print(f"Segment: {filename} sent to node {clusterNodeConnections[i][1]} \n")
     except Exception as e:
         print(f"Error sending segments to nodes: {e} \n")
 
