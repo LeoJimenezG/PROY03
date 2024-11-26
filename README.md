@@ -8,4 +8,4 @@ Client-Cluster Server project school to process video in different nodes and sen
   - ClusterNode: this code connects to the ClusterServer. When more nodes connect, it will receive a segment of the whole video and will process it applying a gray scale. When the segment is received, first, will send a message to the server to let it know its ready, then the processed segment will be sent back.
 - Some of the main characteristics needed to work can be changed according to the different needs. However, it is not exactly proggramed to be a very robust project.
 
-     
+- Note: unfortunately, it will only process the image (video), so the audio will be removed. Probably i will solve it in future updates.
