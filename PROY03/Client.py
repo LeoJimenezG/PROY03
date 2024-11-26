@@ -44,6 +44,7 @@ def send_video():
                     # Send the chunk video to the server
                     clientSocket.sendall(videoChunk)
                 print("Video sent successfully \n")
+                tk.quit()
     except Exception as e:
         print(f"Error sending video: {e} \n")
 

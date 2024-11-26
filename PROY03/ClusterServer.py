@@ -1,6 +1,7 @@
 from moviepy import VideoFileClip, concatenate_videoclips
-from socket import *
 from threading import Thread
+from socket import *
+import tempfile
 import cv2
 import os
 
@@ -201,9 +202,10 @@ def combine_video_segments():
         # Create temporary files for each video segment
         tempVideoPaths = []
         for key in sorted(receivedSegments.keys()):
-            temp_path = f"temp_segment_{key}.mov"
-            with open(temp_path, 'wb') as f:
-                f.write(receivedSegments[key])
+            # Create a temporary file in the system's temp directory
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mov', dir=tempfile.gettempdir()) as temp_file:
+                temp_file.write(receivedSegments[key])
+                temp_path = temp_file.name
             tempVideoPaths.append(temp_path)
         # Load segments
         segmentClips = [VideoFileClip(path) for path in tempVideoPaths]
@@ -225,7 +227,10 @@ def combine_video_segments():
         print("All segments combined successfully \n")
         # Clean up temporary segment files
         for path in tempVideoPaths:
-            os.remove(path)
+            try:
+                os.unlink(path)
+            except Exception as cleanup_error:
+                print(f"Could not remove temporary file {path}: {cleanup_error}")
         # Send the video back to client
         send_video_client()
     except Exception as e:
